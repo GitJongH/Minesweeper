@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>지뢰찾기</title>
+<style>
+  :root {
+    --bg: #1e2430;
+    --panel: #2a3142;
+    --cell: #4a5570;
+    --cell-hover: #5a6784;
+    --open: #d9dee8;
+    --text: #e8ecf4;
+    --danger: #e5484d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    user-select: none; -webkit-user-select: none;
+  }
+  h1 { margin: 0; font-size: 1.6rem; }
+  .bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--panel); padding: 10px 14px; border-radius: 10px; width: 100%;
+  }
+  .lcd {
+    font-family: Consolas, monospace; font-size: 1.5rem; font-weight: bold;
+    background: #111; color: #ff4b4b; padding: 2px 10px; border-radius: 6px; min-width: 70px; text-align: center;
+  }
+  button, select {
+    font: inherit; color: var(--text); background: var(--cell); border: none; border-radius: 8px;
+    padding: 6px 12px; cursor: pointer;
+  }
+  button:hover, select:hover { background: var(--cell-hover); }
+  #face { font-size: 1.5rem; padding: 2px 10px; }
+  #wrap { background: var(--panel); padding: 10px; border-radius: 10px; max-width: 100vw; overflow: auto; }
+  #board { display: grid; gap: 2px; touch-action: manipulation; }
+  .cell {
+    width: 30px; height: 30px; background: var(--cell); border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 1.1rem; cursor: pointer;
+  }
+  .cell:not(.open):hover { background: var(--cell-hover); }
+  .cell.open { background: var(--open); cursor: default; }
+  .cell.boom { background: var(--danger); }
+  .cell.wrong { background: #8a4a4a; }
+  .n1 { color: #1c64f2; } .n2 { color: #2f9e44; } .n3 { color: #e03131; } .n4 { color: #5f3dc4; }
+  .n5 { color: #a61e4d; } .n6 { color: #0c8599; } .n7 { color: #222; } .n8 { color: #666; }
+  #msg { min-height: 1.5em; font-weight: bold; }
+  .screen { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .screen[hidden] { display: none; }
+  .menu { display: flex; flex-direction: column; gap: 10px; width: 240px; }
+  .row { display: flex; gap: 10px; }
+  button.big { font-size: 1.1rem; padding: 12px 20px; }
+  button.danger:hover { background: var(--danger); }
+  .panel { background: var(--panel); padding: 14px 18px; border-radius: 10px; min-width: 300px; }
+  .form { display: flex; flex-direction: column; gap: 14px; }
+  .form label { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .form label.check { justify-content: flex-start; cursor: pointer; }
+  :root { --flag: #e5484d; }
+  .swatches { display: flex; align-items: center; gap: 6px; }
+  .sw { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid transparent; }
+  .sw.sel { border-color: #fff; }
+  #flagcolor { width: 32px; height: 28px; padding: 0; border: none; background: none; cursor: pointer; }
+  .rec h3 { margin: 10px 0 4px; font-size: 1rem; }
+  .rec h3:first-child { margin-top: 0; }
+  .rec ol { margin: 0; padding-left: 1.5em; }
+  .rec li { padding: 2px 0; }
+  .rec .date, .rec .none { opacity: .55; font-size: .85rem; margin-left: 6px; }
+  .rec .new { color: #ffd43b; }
+  .hint { font-size: .8rem; opacity: .65; }
+</style>
+</head>
+<body>
+  <!-- 메뉴 화면 -->
+  <section class="screen" id="screen-menu">
+    <h1>💣 지뢰찾기</h1>
+    <div class="menu">
+      <button class="big" id="btn-start">▶ 게임 시작</button>
+      <button class="big" id="btn-records">🏆 기록 보기</button>
+      <button class="big" id="btn-settings">⚙ 설정</button>
+    </div>
+    <div class="hint" id="menu-info"></div>
+  </section>
+
+  <!-- 설정 화면 -->
+  <section class="screen" id="screen-settings" hidden>
+    <h1>⚙ 설정</h1>
+    <div class="panel form">
+      <label>난이도
+        <select id="level">
+          <option value="9,9,10">초급 (9×9, 지뢰 10)</option>
+          <option value="16,16,40">중급 (16×16, 지뢰 40)</option>
+          <option value="30,16,99">고급 (30×16, 지뢰 99)</option>
+        </select>
+      </label>
+      <label>깃발 색
+        <span class="swatches">
+          <button type="button" class="sw" data-color="#e5484d" style="background:#e5484d" title="빨강"></button>
+          <button type="button" class="sw" data-color="#f59f00" style="background:#f59f00" title="주황"></button>
+          <button type="button" class="sw" data-color="#2f9e44" style="background:#2f9e44" title="초록"></button>
+          <button type="button" class="sw" data-color="#1c7ed6" style="background:#1c7ed6" title="파랑"></button>
+          <button type="button" class="sw" data-color="#9c36b5" style="background:#9c36b5" title="보라"></button>
+          <input type="color" id="flagcolor" value="#e5484d" title="직접 선택">
+        </span>
+      </label>
+      <label class="check"><input type="checkbox" id="noguess"> 추측 없이 풀 수 있는 판만 만들기</label>
+    </div>
+    <button class="big" data-goto="menu">← 메뉴로</button>
+  </section>
+
+  <!-- 기록 화면 -->
+  <section class="screen" id="screen-records" hidden>
+    <h1>🏆 최고 기록</h1>
+    <div class="panel" id="records-list"></div>
+    <div class="row">
+      <button class="big" data-goto="menu">← 메뉴로</button>
+      <button class="big danger" id="btn-clear">기록 초기화</button>
+    </div>
+  </section>
+
+  <!-- 게임 화면 -->
+  <section class="screen" id="screen-game" hidden>
+    <div id="wrap">
+      <div class="bar" style="margin-bottom:10px">
+        <div class="lcd" id="mines">000</div>
+        <button id="face" title="다시 시작">🙂</button>
+        <div class="lcd" id="time">000</div>
+      </div>
+      <div id="board"></div>
+    </div>
+    <div id="msg"></div>
+    <button data-goto="menu">☰ 메뉴</button>
+    <div class="hint">좌클릭: 열기 · 우클릭(모바일은 길게 누르기): 깃발 · 숫자 클릭: 주변 자동 열기</div>
+  </section>
+
+<script>
+const $ = id => document.getElementById(id);
+const boardEl = $('board');
+let W, H, M, cells, started, over, flags, opened, timer, seconds;
+
+function init() {
+  [W, H, M] = $('level').value.split(',').map(Number);
+  clearInterval(timer);
+  cells = Array.from({ length: W * H }, () => ({ mine: false, open: false, flag: false, n: 0 }));
+  started = over = false;
+  flags = opened = seconds = 0;
+  $('face').textContent = '🙂';
+  $('msg').textContent = '';
+  boardEl.style.gridTemplateColumns = `repeat(${W}, 30px)`;
+  boardEl.innerHTML = '';
+  cells.forEach((_, i) => {
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.dataset.i = i;
+    boardEl.appendChild(el);
+  });
+  updateHud();
+}
+
+const pad = n => String(Math.max(0, Math.min(999, n))).padStart(3, '0');
+function updateHud() { $('mines').textContent = pad(M - flags); $('time').textContent = pad(seconds); }
+
+function neighbors(i) {
+  const x = i % W, y = (i / W) | 0, out = [];
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < W && ny >= 0 && ny < H) out.push(ny * W + nx);
+    }
+  return out;
+}
+
+function randomLayout(safe) {
+  const banned = new Set([safe, ...neighbors(safe)]);
+  const pool = [];
+  for (let i = 0; i < W * H; i++) if (!banned.has(i)) pool.push(i);
+  for (let k = pool.length - 1; k > 0; k--) {
+    const j = (Math.random() * (k + 1)) | 0;
+    [pool[k], pool[j]] = [pool[j], pool[k]];
+  }
+  const mine = new Uint8Array(W * H);
+  pool.slice(0, M).forEach(i => mine[i] = 1);
+  const n = Array.from(mine, (_, i) => neighbors(i).reduce((s, j) => s + mine[j], 0));
+  return { mine, n };
+}
+
+// 추측 없이 논리만으로 풀 수 있는 정도(열린 칸 수)를 계산한다.
+function solveProgress(mine, n, start) {
+  const st = new Uint8Array(W * H); // 0 미확인, 1 열림, 2 지뢰 확정
+  let opened = 0;
+  const open = i => {
+    const stack = [i];
+    while (stack.length) {
+      const k = stack.pop();
+      if (st[k] !== 0) continue;
+      st[k] = 1; opened++;
+      if (n[k] === 0) stack.push(...neighbors(k));
+    }
+  };
+  open(start);
+  const total = W * H - M;
+  while (opened < total) {
+    const cons = [], byCell = new Map();
+    for (let i = 0; i < W * H; i++) {
+      if (st[i] !== 1 || n[i] === 0) continue;
+      const nb = neighbors(i);
+      const unk = nb.filter(j => st[j] === 0);
+      if (!unk.length) continue;
+      const rem = n[i] - nb.filter(j => st[j] === 2).length;
+      const c = { unk, rem };
+      cons.push(c);
+      unk.forEach(j => { if (!byCell.has(j)) byCell.set(j, []); byCell.get(j).push(c); });
+    }
+    let progress = false;
+    const apply = (cells2, rem) => {
+      if (rem === 0) { cells2.forEach(j => { if (st[j] === 0) { open(j); progress = true; } }); }
+      else if (rem === cells2.length) { cells2.forEach(j => { if (st[j] === 0) { st[j] = 2; progress = true; } }); }
+    };
+    for (const c of cons) apply(c.unk, c.rem);
+    if (!progress) {
+      // 부분집합 규칙: A ⊂ B 이면 B−A 의 지뢰 수는 B.rem − A.rem
+      for (const a of cons) {
+        for (const b of byCell.get(a.unk[0])) {
+          if (b === a || b.unk.length <= a.unk.length) continue;
+          const bs = new Set(b.unk);
+          if (!a.unk.every(j => bs.has(j))) continue;
+          const as = new Set(a.unk);
+          apply(b.unk.filter(j => !as.has(j)), b.rem - a.rem);
+        }
+      }
+    }
+    if (!progress) break;
+  }
+  return opened;
+}
+
+function placeMines(safe) {
+  const total = W * H - M;
+  let best = null, bestScore = -1;
+  const deadline = $('noguess').checked ? performance.now() + 1500 : 0;
+  do {
+    const layout = randomLayout(safe);
+    const score = solveProgress(layout.mine, layout.n, safe);
+    if (score > bestScore) { best = layout; bestScore = score; }
+    if (score === total) break; // 추측 없이 완전히 풀리는 보드
+  } while (performance.now() < deadline);
+  cells.forEach((c, i) => { c.mine = !!best.mine[i]; c.n = best.n[i]; });
+}
+
+function render(i) {
+  const c = cells[i], el = boardEl.children[i];
+  el.className = 'cell' + (c.open ? ' open' : '');
+  el.textContent = '';
+  if (c.open) {
+    if (c.mine) el.textContent = '💣';
+    else if (c.n) { el.textContent = c.n; el.classList.add('n' + c.n); }
+  } else if (c.flag) el.innerHTML = FLAG_SVG;
+}
+
+const FLAG_SVG = '<svg class="flag" viewBox="0 0 24 24" width="20" height="20" aria-label="깃발"><rect x="5" y="3" width="2" height="18" fill="#222"/><path d="M7 4 L19 9 L7 14 Z" fill="var(--flag)"/><rect x="3" y="20" width="10" height="2" fill="#222"/></svg>';
+
+function applyFlagColor(color) { document.documentElement.style.setProperty('--flag', color); }
+
+function openCell(i) {
+  const stack = [i];
+  while (stack.length) {
+    const k = stack.pop(), c = cells[k];
+    if (c.open || c.flag) continue;
+    c.open = true; opened++;
+    render(k);
+    if (c.mine) return lose(k);
+    if (c.n === 0) stack.push(...neighbors(k));
+  }
+  if (!over && opened === W * H - M) win();
+}
+
+function lose(hit) {
+  over = true; clearInterval(timer);
+  $('face').textContent = '😵';
+  cells.forEach((c, i) => {
+    if (c.mine && !c.flag) { c.open = true; render(i); }
+    else if (!c.mine && c.flag) { render(i); boardEl.children[i].classList.add('wrong'); boardEl.children[i].textContent = '❌'; }
+  });
+  boardEl.children[hit].classList.add('boom');
+  $('msg').textContent = '💥 지뢰를 밟았습니다!';
+}
+
+function win() {
+  over = true; clearInterval(timer);
+  $('face').textContent = '😎';
+  cells.forEach((c, i) => { if (c.mine && !c.flag) { c.flag = true; render(i); } });
+  flags = M; updateHud();
+  const rank = saveRecord($('level').value, seconds);
+  $('msg').textContent = `🎉 클리어! 기록: ${seconds}초` + (rank === 0 ? ' · 🏅 신기록!' : rank > 0 ? ` · ${rank + 1}위` : '');
+}
+
+// ---- 기록 / 설정 저장 (localStorage) ----
+const REC_KEY = 'minesweeper.records', SET_KEY = 'minesweeper.settings';
+const LEVEL_NAMES = { '9,9,10': '초급', '16,16,40': '중급', '30,16,99': '고급' };
+const TOP_N = 5;
+
+function load(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* 저장 불가 환경이면 무시 */ }
+}
+
+// 순위(0부터)를 반환. TOP_N 밖이면 -1
+function saveRecord(level, time) {
+  const all = load(REC_KEY, {});
+  const list = all[level] || [];
+  const entry = { time, date: new Date().toISOString().slice(0, 10) };
+  list.push(entry);
+  list.sort((a, b) => a.time - b.time); // 동점이면 먼저 달성한 기록이 위
+  const rank = list.indexOf(entry);
+  all[level] = list.slice(0, TOP_N);
+  save(REC_KEY, all);
+  return rank < TOP_N ? rank : -1;
+}
+
+function renderRecords() {
+  const all = load(REC_KEY, {});
+  $('records-list').innerHTML = '<div class="rec">' + Object.entries(LEVEL_NAMES).map(([k, name]) => {
+    const list = all[k] || [];
+    const body = list.length
+      ? '<ol>' + list.map((r, i) => `<li class="${i ? '' : 'new'}">${r.time}초<span class="date">${r.date}</span></li>`).join('') + '</ol>'
+      : '<div class="none">기록 없음</div>';
+    return `<h3>${name}</h3>${body}`;
+  }).join('') + '</div>';
+}
+
+function updateMenuInfo() {
+  const best = (load(REC_KEY, {})[$('level').value] || [])[0];
+  $('menu-info').textContent = `현재 난이도: ${LEVEL_NAMES[$('level').value]}` + (best ? ` · 최고 ${best.time}초` : '');
+}
+
+function show(name) {
+  clearInterval(timer);
+  document.querySelectorAll('.screen').forEach(s => s.hidden = s.id !== 'screen-' + name);
+  if (name === 'records') renderRecords();
+  if (name === 'menu') updateMenuInfo();
+  if (name === 'game') init();
+}
+
+function saveSettings() {
+  save(SET_KEY, { level: $('level').value, noguess: $('noguess').checked, flag: $('flagcolor').value });
+}
+
+function setFlagColor(color) {
+  $('flagcolor').value = color;
+  applyFlagColor(color);
+  document.querySelectorAll('.sw').forEach(b => b.classList.toggle('sel', b.dataset.color === color));
+  saveSettings();
+}
+
+function reveal(i) {
+  if (over) return;
+  const c = cells[i];
+  if (c.flag) return;
+  if (!started) {
+    started = true;
+    placeMines(i);
+    timer = setInterval(() => { seconds++; updateHud(); }, 1000);
+  }
+  if (c.open) return chord(i);
+  openCell(i);
+}
+
+function chord(i) {
+  const c = cells[i];
+  if (!c.n) return;
+  const nb = neighbors(i);
+  if (nb.filter(j => cells[j].flag).length !== c.n) return;
+  nb.forEach(j => { if (!over) openCell(j); });
+}
+
+function toggleFlag(i) {
+  if (over) return;
+  const c = cells[i];
+  if (c.open) return;
+  c.flag = !c.flag;
+  flags += c.flag ? 1 : -1;
+  render(i); updateHud();
+}
+
+const idx = e => { const t = e.target.closest('.cell'); return t ? +t.dataset.i : -1; };
+
+let pressTimer, pressedLong = false;
+boardEl.addEventListener('click', e => {
+  const i = idx(e);
+  if (i >= 0 && !pressedLong) reveal(i);
+  pressedLong = false;
+});
+boardEl.addEventListener('contextmenu', e => { e.preventDefault(); const i = idx(e); if (i >= 0) toggleFlag(i); });
+
+// 모바일 길게 누르기 = 깃발
+boardEl.addEventListener('touchstart', e => {
+  const i = idx(e);
+  pressedLong = false;
+  pressTimer = setTimeout(() => { pressedLong = true; if (i >= 0) toggleFlag(i); }, 400);
+}, { passive: true });
+['touchend', 'touchmove', 'touchcancel'].forEach(ev =>
+  boardEl.addEventListener(ev, () => clearTimeout(pressTimer), { passive: true }));
+
+$('face').addEventListener('click', init);
+$('level').addEventListener('change', saveSettings);
+$('noguess').addEventListener('change', saveSettings);
+$('btn-start').addEventListener('click', () => show('game'));
+$('btn-records').addEventListener('click', () => show('records'));
+$('btn-settings').addEventListener('click', () => show('settings'));
+$('btn-clear').addEventListener('click', () => {
+  if (confirm('저장된 모든 기록을 지울까요?')) { save(REC_KEY, {}); renderRecords(); }
+});
+document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => show(b.dataset.goto)));
+
+document.querySelectorAll('.sw').forEach(b => b.addEventListener('click', () => setFlagColor(b.dataset.color)));
+$('flagcolor').addEventListener('input', e => setFlagColor(e.target.value));
+
+const saved = load(SET_KEY, { level: '9,9,10', noguess: true, flag: '#e5484d' });
+if (LEVEL_NAMES[saved.level]) $('level').value = saved.level;
+$('noguess').checked = !!saved.noguess;
+setFlagColor(/^#[0-9a-f]{6}$/i.test(saved.flag) ? saved.flag : '#e5484d');
+show('menu');
+</script>
+</body>
+</html>
